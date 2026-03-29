@@ -5,13 +5,12 @@ description: >
   Use when the user wants to offload compute, test on a clean environment, run Docker
   services, or give an AI agent its own machine. Supports CLI mode (gibil create/run/destroy)
   and MCP mode (vm_bash, vm_read, vm_write, vm_ls, vm_grep).
-license: SEE LICENSE IN LICENSE
 compatibility: Requires Node.js 20+ and a Hetzner Cloud API token
 metadata:
-  author: alexmouradian
+  author: AlexikM
   version: "0.1.3"
   homepage: https://gibil.dev
-  repository: https://github.com/AlexikM/gibil
+  repository: https://github.com/AlexikM/gibil-skills
 ---
 
 # Gibil — Ephemeral Remote Servers
