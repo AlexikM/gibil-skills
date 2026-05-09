@@ -8,7 +8,7 @@ description: >
 compatibility: Requires Node.js 20+ and an API token from Hetzner or Vultr
 metadata:
   author: AlexikM
-  version: "0.5.0"
+  version: "0.4.0"
   homepage: https://gibil.dev
   repository: https://github.com/AlexikM/gibil-skills
 ---
