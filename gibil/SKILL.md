@@ -4,26 +4,30 @@ description: >
   Forge, use, and burn disposable remote servers. Use when the user wants to
   run builds, tests, or commands on a clean environment instead of locally.
   Full lifecycle via MCP: create_server, vm_bash, vm_read, vm_write, destroy_server.
-compatibility: Requires Node.js 20+ and a Hetzner Cloud API token
+  Multi-provider — Hetzner (EU/US, cheapest) and Vultr (APAC: Tokyo, Seoul, Singapore, Sydney, Mumbai).
+compatibility: Requires Node.js 20+ and an API token from Hetzner or Vultr
 metadata:
   author: AlexikM
-  version: "0.4.0"
+  version: "0.5.0"
   homepage: https://gibil.dev
   repository: https://github.com/AlexikM/gibil-skills
 ---
 
-# Gibil — Ephemeral Remote Servers
+# Gibil — Your Own Machine, On Demand
 
-Gibil gives you disposable Linux servers with root access, Docker, and SSH. Forge a server, do your work, burn it when done.
+Gibil forges your own machine on demand — own kernel, full root, Docker-in-Docker, SSH, real systemd, on the cloud you choose. Forge a box, do your work, burn it when done. Set the TTL anywhere from 15 minutes to 30 days; extend if the work runs long. Ubuntu Linux on either Hetzner Cloud (EU/US baseline) or Vultr (best APAC coverage); the architecture lets additional clouds plug in without changing the surface.
 
 ## Setup
 
 ```bash
 npm install -g gibil
-gibil init
+gibil init                    # interactive: pick hetzner or vultr
+# or non-interactive:
+gibil init --provider vultr --token <key>
+gibil init --add hetzner      # add a second provider later
 ```
 
-`gibil init` configures your Hetzner token, installs the agent skill, and registers the MCP server. For Claude Code, it merges the gibil entry into `~/.claude.json` (Claude Code's user-level config), preserving any other `mcpServers` you have. For other MCP-compatible agents, run `gibil mcp --print-config` and add the printed JSON to your agent's MCP config. After init, restart your agent — the MCP tools are immediately available.
+`gibil init` configures your provider token(s), installs the agent skill, and registers the MCP server. The picker shows hetzner (default — EU/US, cheapest) and vultr (APAC density). Run `gibil providers` to see configured providers, regions, and the size table. For Claude Code, init merges the gibil entry into `~/.claude.json`, preserving any other `mcpServers` you have. For other MCP-compatible agents, run `gibil mcp --print-config`. After init, restart your agent — the MCP tools are immediately available.
 
 ## MCP Tools
 
@@ -31,10 +35,10 @@ gibil init
 
 | Tool | What it does | Params |
 |---|---|---|
-| `create_server` | Forge a new server. Returns name and IP when ready. | `name?`, `repo?`, `ttl?`, `server_type?`, `location?`, `env?` |
+| `create_server` | Forge a new server. Returns name and IP when ready. | `name?`, `repo?`, `ttl?` (e.g. `"2h"`, `"7d"`, `"1mo"`), `provider?` (`hetzner`/`vultr`), `size?` (`small`/`medium`/`large`), `server_type?`, `location?`, `env?` |
 | `destroy_server` | Burn a server by name. | `name` |
 | `list_servers` | List all active servers with IPs and remaining TTL. | — |
-| `extend_server` | Extend a server's auto-destroy timer. | `name`, `ttl` |
+| `extend_server` | Extend a server's auto-destroy timer. | `name`, `ttl` (e.g. `"7d"`, `"1mo"`, `"1y"`) |
 
 ### Working on a server
 
@@ -64,8 +68,10 @@ All vm_* tools accept an optional `server` parameter. If only one server is runn
 - `background` — set to `true` on `vm_bash` to run in background. Returns a `job_id` you poll with `vm_job_status`.
 - `glob` — shell glob for `vm_ls`, e.g. `"**/*.ts"` to find all TypeScript files.
 - `include` — file glob for `vm_grep`, e.g. `"*.ts"` to search only TypeScript files.
-- `server_type` — Hetzner server type. Auto-detected during `gibil init`. Override with `"cax21"` (ARM) or `"cpx21"` (x86).
-- `location` — Hetzner datacenter. Auto-detected during `gibil init`. Override with `"fsn1"`, `"nbg1"`, etc.
+- `provider` — `hetzner` or `vultr`. Defaults to the configured default. Pick `vultr` for APAC users.
+- `size` — `small` (2 vCPU/4 GB), `medium` (4 vCPU/8 GB), `large` (8 vCPU/16 GB). Resolves to the right SKU per provider. Run `gibil providers` to see actual specs.
+- `server_type` — Provider-native SKU. Overrides `size`. Hetzner: `cax11`/`cax21`/`cax31` (ARM, fsn1/nbg1 only) or `cpx21`/`cpx31` (x86, all locations). Vultr: `vc2-2c-4gb`/`vc2-4c-8gb`.
+- `location` — Provider region. Hetzner: `fsn1`/`nbg1`/`ash`. Vultr: `nrt` (Tokyo)/`sgp` (Singapore)/`syd` (Sydney)/`icn` (Seoul)/`bom` (Mumbai).
 - `env` — key-value pairs exported on the server and persisted to `/etc/environment`.
 
 ## Workflow
@@ -73,7 +79,7 @@ All vm_* tools accept an optional `server` parameter. If only one server is runn
 ### Forge a server and run tests
 
 ```
-create_server({ name: "test", repo: "https://github.com/user/project", ttl: 30 })
+create_server({ name: "test", repo: "https://github.com/user/project", ttl: "2h" })
 → { name: "test", ip: "65.21.x.x", status: "running" }
 
 vm_bash({ command: "pnpm install && pnpm test" })
@@ -112,6 +118,20 @@ vm_ls({ glob: "**/*.test.ts" })
 → list of test files
 ```
 
+### Pick a provider and region (e.g. APAC)
+
+```
+create_server({
+  name: "tokyo-test",
+  repo: "https://github.com/user/project",
+  provider: "vultr",
+  location: "nrt",
+  size: "medium",
+  ttl: "2h",
+})
+→ { name: "tokyo-test", ip: "...", status: "running" }
+```
+
 ### Pass secrets
 
 ```
@@ -133,8 +153,8 @@ vm_job_status({ job_id: "j-a3f1b2c8" })
 ### Parallel test sharding across fleet
 
 ```
-create_server({ name: "shard-1", repo: "...", ttl: 30 })
-create_server({ name: "shard-2", repo: "...", ttl: 30 })
+create_server({ name: "shard-1", repo: "...", ttl: "1h" })
+create_server({ name: "shard-2", repo: "...", ttl: "1h" })
 
 vm_bash({ command: "pnpm test -- --shard=1/2", background: true, server: "shard-1" })
 → { job_id: "j-aaa" }
@@ -151,21 +171,22 @@ vm_job_status({ job_id: "j-bbb" })
 - The repo is cloned to `/root/project`. `vm_bash` defaults to that directory.
 - `vm_bash` defaults to 30 second timeout. Use `background: true` for long operations, or pass `timeout_ms` to increase the limit.
 - `vm_write` replaces the entire file. Read first, modify, write back.
-- Servers are disposable. If something breaks, destroy and create a new one.
+- Boxes are disposable by default. If something breaks, destroy and forge a new one. If you need it longer, `extend_server`.
 - `create_server` waits until the server is SSH-ready before returning.
 
 ## When to use gibil
 
 **Good fit:**
-- Running the full test suite on a clean environment
+- Running the full test suite on a clean machine
 - Heavy builds that would slow down the local machine
 - Tasks needing Docker services without local Docker
-- Giving an agent root access safely on a disposable server
+- Giving an agent root access safely on a disposable box
 - Reproducing bugs on a fresh environment
+- Long-lived dev sessions or staging boxes (set TTL to days, extend as needed)
 
 **Not the right fit:**
 - Quick local file reads or edits (do it locally)
-- Tasks under 30 seconds (server boot takes ~90s)
+- Tasks under 30 seconds (box boot takes ~90s)
 - Modifying the user's local git working tree
 
 ## More information
