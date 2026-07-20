@@ -5,7 +5,7 @@
 <h1 align="center">Gibil Agent Skill</h1>
 
 <p align="center">
-  Teach your AI agent how to use <a href="https://gibil.dev">gibil</a> — ephemeral remote servers for builds, tests, and deployments.
+  Teach your AI agent how to use <a href="https://gibil.dev">gibil</a>: ephemeral remote servers for builds, tests, and deployments.
 </p>
 
 ---
